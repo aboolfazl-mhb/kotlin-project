@@ -1,8 +1,9 @@
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.PrintWriter
+import java.util.*
 
-data class Contact(val name: String, val phoneNumber: String, val email: String, val address: String)
+data class Contact(val id: UUID, val firstName: String,val lastName: String, val phoneNumber: String, val email: String, val address: String)
 
 class PhoneBook(private val databaseFileName: String) {
     private val contacts = mutableListOf<Contact>()
@@ -16,8 +17,8 @@ class PhoneBook(private val databaseFileName: String) {
             File(databaseFileName).useLines { lines ->
                 contacts.addAll(lines.mapNotNull {
                     val values = it.split(",")
-                    if (values.size == 4) {
-                        Contact(values[0], values[1], values[2], values[3])
+                    if (values.size == 5) {
+                        Contact(UUID.fromString(values[0]), values[1], values[2], values[3], values[4],values[5])
                     } else {
                         null
                     }
@@ -34,7 +35,7 @@ class PhoneBook(private val databaseFileName: String) {
         try {
             PrintWriter(databaseFileName).use { writer ->
                 contacts.forEach { contact ->
-                    writer.println("${contact.name},${contact.phoneNumber},${contact.email},${contact.address}")
+                    writer.println("${contact.id},${contact.firstName},${contact.lastName},${contact.phoneNumber},${contact.email},${contact.address}")
                 }
                 println("${Color.GREEN}Database updated successfully.${Color.RESET}")
             }
@@ -43,22 +44,24 @@ class PhoneBook(private val databaseFileName: String) {
         }
     }
 
-    fun addContact(name: String, phoneNumber: String, email: String, address: String) {
-        val newContact = Contact(name, phoneNumber, email, address)
+    fun addContact(firstName: String, lastName: String, phoneNumber: String, email: String, address: String) {
+        val newContact = Contact(UUID.randomUUID(), firstName,lastName, phoneNumber, email, address)
         contacts.add(newContact)
         saveContactsToDatabase()
         println("${Color.GREEN}Contact added successfully.${Color.RESET}")
     }
 
-    fun searchContact(name: String): Contact? {
-        return contacts.find { it.name == name }
+    fun searchContact(query: String): Contact? {
+        return contacts.find {
+            it.firstName.equals(query, ignoreCase = true) || it.phoneNumber == query
+        }
     }
 
-    fun editContact(name: String, phoneNumber: String, email: String, address: String) {
-        val existingContact = searchContact(name)
+    fun editContact(id: UUID,firstName: String, lastName: String, phoneNumber: String, email: String, address: String) {
+        val existingContact = contacts.find { it.id == id }
         if (existingContact != null) {
             contacts.remove(existingContact)
-            val updatedContact = Contact(name, phoneNumber, email, address)
+            val updatedContact = Contact(id, firstName , lastName , phoneNumber, email, address)
             contacts.add(updatedContact)
             saveContactsToDatabase()
             println("${Color.GREEN}Contact edited successfully.${Color.RESET}")
@@ -67,8 +70,8 @@ class PhoneBook(private val databaseFileName: String) {
         }
     }
 
-    fun deleteContact(name: String) {
-        val existingContact = searchContact(name)
+    fun deleteContact(phone: String) {
+        val existingContact = searchContact(phone)
         if (existingContact != null) {
             contacts.remove(existingContact)
             saveContactsToDatabase()
@@ -82,9 +85,10 @@ class PhoneBook(private val databaseFileName: String) {
         if (contacts.isEmpty()) {
             println("${Color.YELLOW}Phone book is empty.${Color.RESET}")
         } else {
-            println("${Color.BLUE}All contacts in the phone book:${Color.RESET}")
-            contacts.forEach { contact ->
-                println("${Color.CYAN}Name: ${contact.name}, Phone Number: ${contact.phoneNumber}, Email: ${contact.email}, Address: ${contact.address}${Color.RESET}")
+            println("${Color.BLUE}All contacts in the phone book (sorted by first name):${Color.RESET}")
+            contacts.sortedBy { it.firstName }.forEach { contact ->
+                println("${Color.CYAN}firstName: ${contact.firstName}, lastName: ${contact.lastName}, " +
+                        "Phone Number: ${contact.phoneNumber}, Email: ${contact.email}, Address: ${contact.address}${Color.RESET}")
             }
         }
     }
@@ -93,7 +97,7 @@ class PhoneBook(private val databaseFileName: String) {
         try {
             PrintWriter(fileName).use { writer ->
                 contacts.forEach { contact ->
-                    writer.println("${contact.name},${contact.phoneNumber},${contact.email},${contact.address}")
+                    writer.println("${contact.id},${contact.firstName},${contact.lastName},${contact.phoneNumber},${contact.email},${contact.address}")
                 }
                 println("${Color.GREEN}Backup successful. Contacts exported to $fileName.${Color.RESET}")
             }
@@ -108,8 +112,8 @@ class PhoneBook(private val databaseFileName: String) {
                 contacts.clear()
                 contacts.addAll(lines.mapNotNull {
                     val values = it.split(",")
-                    if (values.size == 4) {
-                        Contact(values[0], values[1], values[2], values[3])
+                    if (values.size == 6) {
+                        Contact(UUID.fromString(values[0]), values[1], values[2], values[3], values[4], values[5])
                     } else {
                         null
                     }
@@ -122,6 +126,11 @@ class PhoneBook(private val databaseFileName: String) {
         } catch (e: Exception) {
             println("${Color.RED}Error: ${e.message}${Color.RESET}")
         }
+    }
+    
+
+    private fun isDuplicateId(id: UUID): Boolean {
+        return contacts.any { it.id == id }
     }
 
     fun isValidPhoneNumber(phoneNumber: String): Boolean {
@@ -164,8 +173,10 @@ fun main() {
 
         when (readLine()?.toIntOrNull()) {
             1 -> {
-                print("${Color.BLUE}Enter Name: ${Color.RESET}")
-                val name = readLine() ?: ""
+                print("${Color.BLUE}Enter firstName: ${Color.RESET}")
+                val firstName = readLine() ?: ""
+                print("${Color.BLUE}Enter lastname: ${Color.RESET}")
+                val lastname = readLine() ?: ""
                 print("${Color.BLUE}Enter Phone Number: ${Color.RESET}")
                 val phoneNumber = readLine() ?: ""
                 print("${Color.BLUE}Enter Email: ${Color.RESET}")
@@ -173,34 +184,39 @@ fun main() {
                 print("${Color.BLUE}Enter Address: ${Color.RESET}")
                 val address = readLine() ?: ""
 
-                if (phoneBook.isValidInput(name) &&
+                if (phoneBook.isValidInput(firstName) &&
+                    phoneBook.isValidInput(lastname) &&
                     phoneBook.isValidPhoneNumber(phoneNumber) &&
                     phoneBook.isValidEmail(email) &&
                     phoneBook.isValidInput(address)
                 ) {
-                    phoneBook.addContact(name, phoneNumber, email, address)
+                    phoneBook.addContact(firstName,lastname, phoneNumber, email, address)
                 } else {
-                    println("${Color.RED}Invalid input. Please check your name, phone number, email, and address.${Color.RESET}")
+                    println("${Color.RED}Invalid input. Please check your firstName, phone number, email, and address.${Color.RESET}")
                 }
             }
             2 -> {
-                print("${Color.BLUE}Enter Name to Search: ${Color.RESET}")
-                val name = readLine() ?: ""
-                val contact = phoneBook.searchContact(name)
+                print("${Color.BLUE}Enter firstName or phone to Search: ${Color.RESET}")
+                val query = readLine() ?: ""
+                val contact = phoneBook.searchContact(query)
                 if (contact != null) {
                     println("${Color.GREEN}Contact Found:${Color.RESET}")
-                    println("${Color.CYAN}Name: ${contact.name}, Phone Number: ${contact.phoneNumber}, Email: ${contact.email}, Address: ${contact.address}${Color.RESET}")
+                    println("${Color.CYAN}firstName: ${contact.firstName}, lastName: ${contact.lastName}, Phone Number: ${contact.phoneNumber}, Email: ${contact.email}, Address: ${contact.address}${Color.RESET}")
                 } else {
                     println("${Color.RED}Contact not found.${Color.RESET}")
                 }
             }
             3 -> {
-                print("${Color.BLUE}Enter Name to Edit: ${Color.RESET}")
-                val editName = readLine() ?: ""
-                if (phoneBook.isValidInput(editName)) {
-                    val existingContact = phoneBook.searchContact(editName)
+                print("${Color.BLUE}Enter phone to Edit: ${Color.RESET}")
+                val phone = readLine() ?: ""
+                if (phoneBook.isValidInput(phone)) {
+                    val existingContact = phoneBook.searchContact(phone)
                     if (existingContact != null) {
                         println("${Color.BLUE}Enter new details for the contact:${Color.RESET}")
+                        print("${Color.BLUE}\tEnter firstName : ${Color.RESET}")
+                        val newfirstName = readLine() ?: ""
+                        print("${Color.BLUE}\tEnter lastName : ${Color.RESET}")
+                        val newlastName = readLine() ?: ""
                         print("${Color.BLUE}\tEnter Phone Number: ${Color.RESET}")
                         val newPhoneNumber = readLine() ?: ""
                         print("${Color.BLUE}\tEnter Email: ${Color.RESET}")
@@ -209,14 +225,16 @@ fun main() {
                         val newAddress = readLine() ?: ""
 
                         // validate email and phone
-                        if (phoneBook.isValidPhoneNumber(newPhoneNumber) &&
+                        if (phoneBook.isValidPhoneNumber(newfirstName) &&
+                            phoneBook.isValidPhoneNumber(newlastName) &&
+                            phoneBook.isValidPhoneNumber(newPhoneNumber) &&
                             phoneBook.isValidEmail(newEmail) &&
                             phoneBook.isValidInput(newAddress)
                         ) {
-                            phoneBook.editContact(editName, newPhoneNumber, newEmail, newAddress)
-                            println("${Color.GREEN}Contact $editName edited successfully.${Color.RESET}")
+                            phoneBook.editContact(existingContact.id,newfirstName,newlastName,newPhoneNumber, newEmail, newAddress)
+                            println("${Color.GREEN}Contact $phone edited successfully.${Color.RESET}")
                         } else {
-                            println("${Color.RED}Invalid input. Please check your name, phone number, email, and address.${Color.RESET}")
+                            println("${Color.RED}Invalid input. Please check your firstname, lastname, phone number, email, and address.${Color.RESET}")
                         }
                     } else {
                         println("${Color.RED}Contact not found.${Color.RESET}")
@@ -226,10 +244,10 @@ fun main() {
                 }
             }
             4 -> {
-                print("${Color.BLUE}Enter Name to Delete: ${Color.RESET}")
-                val deleteName = readLine() ?: ""
-                if (phoneBook.isValidInput(deleteName)) {
-                    phoneBook.deleteContact(deleteName)
+                print("${Color.BLUE}Enter Phone to Delete: ${Color.RESET}")
+                val deletePhone = readLine() ?: ""
+                if (phoneBook.isValidInput(deletePhone)) {
+                    phoneBook.deleteContact(deletePhone)
                 } else {
                     println("${Color.RED}Invalid input. Please enter a valid name.${Color.RESET}")
                 }
